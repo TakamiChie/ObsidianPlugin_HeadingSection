@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build output
+main.js
+*.map
+dist/
+
+# Test Vault: plugin files copied by the build
+test_vault/.obsidian/plugins/
+
+# Test Vault: local Obsidian state generated when the Vault is opened
+test_vault/.obsidian/workspace*.json
+test_vault/.obsidian/appearance.json
+test_vault/.obsidian/core-plugins.json
+test_vault/.obsidian/cache/
+test_vault/.obsidian/.hotreload
+test_vault/.trash/
+
+# Logs and test output
+*.log
+coverage/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
