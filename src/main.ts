@@ -81,15 +81,15 @@ function getHeadings(view: EditorView): HeadingInfo[] {
 
 function getSectionRange(view: EditorView, heading: HeadingInfo): SectionRange {
   const headings = getHeadings(view);
-  const nextSameLevel = headings.find(
+  const nextSectionHeading = headings.find(
     (candidate) =>
       candidate.lineNumber > heading.lineNumber &&
-      candidate.level === heading.level,
+      candidate.level <= heading.level,
   );
 
   return {
     from: heading.from,
-    to: nextSameLevel ? nextSameLevel.from : view.state.doc.length,
+    to: nextSectionHeading ? nextSectionHeading.from : view.state.doc.length,
   };
 }
 
@@ -161,7 +161,7 @@ class HeadingToolsWidget extends WidgetType {
         view,
         "コピー",
         "copy",
-        "この見出しから次の同レベル見出し直前までをコピー",
+        "この見出しから次の同レベル以上の見出し直前までをコピー",
       ),
     );
     wrapper.appendChild(
