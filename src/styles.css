@@ -1,9 +1,11 @@
 /* src/styles.css */
 .heading-section-tools {
+  position: absolute;
+  z-index: var(--layer-popover);
   display: inline-flex;
+  align-items: center;
   gap: 0.25rem;
   margin-inline-start: 0.5rem;
-  vertical-align: middle;
 }
 
 .heading-section-tools button {
@@ -13,7 +15,7 @@
   background: var(--background-secondary);
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
-  line-height: 1.5;
+  line-height: 1;
   padding: 0.05rem 0.4rem;
   cursor: pointer;
 }
