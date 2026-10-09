@@ -7,7 +7,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
-import { App, Menu, Notice, Plugin, SuggestModal } from "obsidian";
+import { App, MarkdownView, Menu, Notice, Plugin, SuggestModal } from "obsidian";
 import styles from "./styles.css";
 
 type HeadingInfo = {
@@ -220,6 +220,40 @@ class HeadingToolsWidget extends WidgetType {
   toDOM(view: EditorView): HTMLElement {
     const wrapper = document.createElement("span");
     wrapper.className = "heading-section-tools";
+    wrapper.dataset.headingFrom = String(this.headingFrom);
+    wrapper.setAttribute("role", "toolbar");
+    wrapper.setAttribute("aria-label", "見出し操作");
+    wrapper.addEventListener("keydown", (event) => {
+      // Let native button activation and Tab work without editor key bindings.
+      event.stopPropagation();
+      const buttons = Array.from(wrapper.querySelectorAll("button"));
+      const index = buttons.indexOf(
+        wrapper.ownerDocument.activeElement as HTMLButtonElement,
+      );
+      let nextIndex: number;
+      switch (event.key) {
+        case "ArrowRight":
+          nextIndex = (index + 1) % buttons.length;
+          break;
+        case "ArrowLeft":
+          nextIndex = (index + buttons.length - 1) % buttons.length;
+          break;
+        case "Home":
+          nextIndex = 0;
+          break;
+        case "End":
+          nextIndex = buttons.length - 1;
+          break;
+        case "Escape":
+          event.preventDefault();
+          view.focus();
+          return;
+        default:
+          return;
+      }
+      event.preventDefault();
+      buttons[nextIndex]?.focus();
+    });
 
     wrapper.appendChild(
       this.createButton(
@@ -271,7 +305,7 @@ class HeadingToolsWidget extends WidgetType {
   }
 
   ignoreEvent(): boolean {
-    return false;
+    return true;
   }
 
   private createButton(
@@ -304,8 +338,11 @@ class HeadingToolsViewPlugin {
   decorations: DecorationSet;
   private headings: HeadingInfo[];
   private hoveredHeadingFrom: number | null = null;
+  private toolbarHeadingFrom: number | null = null;
   private readonly handleMouseMove: (event: MouseEvent) => void;
   private readonly handleMouseLeave: () => void;
+  private readonly handleFocusOut: () => void;
+  private focusFrame: number | null = null;
 
   constructor(
     private readonly view: EditorView,
@@ -315,12 +352,68 @@ class HeadingToolsViewPlugin {
     this.decorations = this.buildDecorations(view);
     this.handleMouseMove = (event) => this.updateHoveredHeading(event);
     this.handleMouseLeave = () => this.setHoveredHeading(null);
+    this.handleFocusOut = () => {
+      // Wait until focus has moved to distinguish Tab within the toolbar.
+      queueMicrotask(() => {
+        if (
+          this.toolbarHeadingFrom !== null &&
+          !this.view.dom.querySelector(
+            `.heading-section-tools[data-heading-from="${this.toolbarHeadingFrom}"]`,
+          )?.contains(this.view.dom.ownerDocument.activeElement)
+        ) {
+          this.toolbarHeadingFrom = null;
+          this.decorations = this.buildDecorations(this.view);
+          this.view.dispatch({});
+        }
+      });
+    };
     view.dom.addEventListener("mousemove", this.handleMouseMove);
     view.dom.addEventListener("mouseleave", this.handleMouseLeave);
+    view.dom.addEventListener("focusout", this.handleFocusOut);
+  }
+
+  focusToolbar(): void {
+    const cursor = this.view.state.selection.main.head;
+    const currentHeading = this.headings.find(
+      (heading) => cursor >= heading.from && cursor <= heading.to,
+    );
+    const visibleToolbar = this.view.dom.querySelector<HTMLElement>(
+      currentHeading
+        ? `.heading-section-tools[data-heading-from="${currentHeading.from}"]`
+        : ".heading-section-tools",
+    ) ?? this.view.dom.querySelector<HTMLElement>(".heading-section-tools");
+    const heading = visibleToolbar
+      ? this.headings.find(
+          (item) => item.from === Number(visibleToolbar.dataset.headingFrom),
+        )
+      : this.headings.filter((item) => item.from <= cursor).pop();
+    if (!heading) {
+      new Notice("カーソル位置より前に見出しがありません。");
+      return;
+    }
+
+    this.toolbarHeadingFrom = heading.from;
+    this.decorations = this.buildDecorations(this.view);
+    this.view.dispatch({
+      ...(visibleToolbar ? {} : { selection: { anchor: heading.from } }),
+      effects: EditorView.scrollIntoView(heading.to, { y: "nearest" }),
+    });
+    const win = this.view.dom.ownerDocument.defaultView ?? window;
+    if (this.focusFrame !== null) {
+      win.cancelAnimationFrame(this.focusFrame);
+    }
+    // Scrolling can create a widget outside the previous viewport.
+    this.focusFrame = win.requestAnimationFrame(() => {
+      this.focusFrame = null;
+      this.view.dom.querySelector<HTMLButtonElement>(
+        `.heading-section-tools[data-heading-from="${heading.from}"] button`,
+      )?.focus();
+    });
   }
 
   update(update: ViewUpdate): void {
     if (update.docChanged) {
+      this.toolbarHeadingFrom = null;
       this.headings = getHeadings(update.view);
     }
 
@@ -336,8 +429,13 @@ class HeadingToolsViewPlugin {
   }
 
   destroy(): void {
+    this.toolbarHeadingFrom = null;
+    if (this.focusFrame !== null) {
+      (this.view.dom.ownerDocument.defaultView ?? window).cancelAnimationFrame(this.focusFrame);
+    }
     this.view.dom.removeEventListener("mousemove", this.handleMouseMove);
     this.view.dom.removeEventListener("mouseleave", this.handleMouseLeave);
+    this.view.dom.removeEventListener("focusout", this.handleFocusOut);
   }
 
   private updateHoveredHeading(event: MouseEvent): void {
@@ -386,7 +484,12 @@ class HeadingToolsViewPlugin {
       );
       const isHovered = heading.from === this.hoveredHeadingFrom;
 
-      if ((!view.hasFocus || !hasFocusedSelection) && !isHovered) {
+      const hasToolbarFocus = heading.from === this.toolbarHeadingFrom;
+      if (
+        (!view.hasFocus || !hasFocusedSelection) &&
+        !isHovered &&
+        !hasToolbarFocus
+      ) {
         continue;
       }
 
@@ -419,6 +522,29 @@ export default class HeadingSectionToolsPlugin extends Plugin {
     );
 
     this.registerEditorExtension(extension);
+    this.addCommand({
+      id: "focus-heading-toolbar",
+      name: "見出し操作バーにフォーカス",
+      hotkeys: [{ modifiers: ["Mod", "Alt"], key: "h" }],
+      checkCallback: (checking) => {
+        const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!markdownView || markdownView.getMode() !== "source") {
+          return false;
+        }
+        const editorDom = markdownView.containerEl.querySelector<HTMLElement>(
+          ".cm-editor",
+        );
+        const editorView = editorDom ? EditorView.findFromDOM(editorDom) : null;
+        const tools = editorView?.plugin(extension);
+        if (!tools) {
+          return false;
+        }
+        if (!checking) {
+          tools.focusToolbar();
+        }
+        return true;
+      },
+    });
   }
 
   async executeAction(
