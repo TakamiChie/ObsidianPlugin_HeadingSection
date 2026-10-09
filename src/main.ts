@@ -7,7 +7,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
-import { Notice, Plugin } from "obsidian";
+import { Menu, Notice, Plugin } from "obsidian";
 import styles from "./styles.css";
 
 type HeadingInfo = {
@@ -158,28 +158,42 @@ class HeadingToolsWidget extends WidgetType {
 
     wrapper.appendChild(
       this.createButton(
-        view,
         "コピー",
-        "copy",
         "この見出しから次の同レベル以上の見出し直前までをコピー",
+        () => void this.plugin.executeAction(view, this.headingFrom, "copy"),
       ),
     );
-    wrapper.appendChild(
-      this.createButton(
-        view,
-        "↓",
-        "increase",
-        "範囲内の見出しレベルを1つ下げる",
-      ),
+    const levelButton = this.createButton(
+      "レベル変更",
+      "見出しレベルを変更するメニューを開く",
+      () => {
+        const menu = new Menu();
+        menu.addItem((item) =>
+          item
+            .setTitle("見出しレベルを1つ下げる")
+            .setIcon("arrow-down")
+            .onClick(() => {
+              void this.plugin.executeAction(view, this.headingFrom, "increase");
+            }),
+        );
+        menu.addItem((item) =>
+          item
+            .setTitle("見出しレベルを1つ上げる")
+            .setIcon("arrow-up")
+            .onClick(() => {
+              void this.plugin.executeAction(view, this.headingFrom, "decrease");
+            }),
+        );
+        const bounds = levelButton.getBoundingClientRect();
+        // Keep menu actions away from the click that opens the menu.
+        menu.showAtPosition(
+          { x: bounds.left, y: bounds.bottom + 8 },
+          levelButton.ownerDocument,
+        );
+      },
     );
-    wrapper.appendChild(
-      this.createButton(
-        view,
-        "↑",
-        "decrease",
-        "範囲内の見出しレベルを1つ上げる",
-      ),
-    );
+    levelButton.setAttribute("aria-haspopup", "menu");
+    wrapper.appendChild(levelButton);
 
     return wrapper;
   }
@@ -189,15 +203,15 @@ class HeadingToolsWidget extends WidgetType {
   }
 
   private createButton(
-    view: EditorView,
     label: string,
-    action: Action,
     title: string,
+    onClick: () => void,
   ): HTMLButtonElement {
     const button = document.createElement("button");
     button.type = "button";
     button.textContent = label;
     button.title = title;
+    button.setAttribute("aria-label", title);
 
     button.addEventListener("mousedown", (event) => {
       event.preventDefault();
@@ -207,7 +221,7 @@ class HeadingToolsWidget extends WidgetType {
     button.addEventListener("click", (event) => {
       event.preventDefault();
       event.stopPropagation();
-      void this.plugin.executeAction(view, this.headingFrom, action);
+      onClick();
     });
 
     return button;
