@@ -24,7 +24,8 @@
   height: auto;
   min-height: 0;
   margin: 0;
-  padding: 0.25rem 0.55rem;
+  margin-top: -1px;
+  padding: 0.45rem 0.55rem;
   box-sizing: border-box;
   max-inline-size: 100%;
   white-space: normal;
