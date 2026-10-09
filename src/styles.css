@@ -1,11 +1,16 @@
 /* src/styles.css */
 .heading-section-tools {
-  position: absolute;
-  z-index: var(--layer-popover);
   display: inline-flex;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 0.25rem;
   margin-inline-start: 0.5rem;
+  max-inline-size: calc(100% - 0.5rem);
+  /* Keep the controls in inline flow without adding to the line box height. */
+  height: 0;
+  overflow: visible;
+  vertical-align: middle;
+  white-space: normal;
 }
 
 .heading-section-tools button {
@@ -16,7 +21,14 @@
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   line-height: 1;
-  padding: 0.05rem 0.4rem;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0.25rem 0.55rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
