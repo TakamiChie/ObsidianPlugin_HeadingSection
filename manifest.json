@@ -4,6 +4,6 @@
   "version": "0.1.0",
   "minAppVersion": "1.7.2",
   "description": "Adds copy and heading-level controls to every Markdown heading in Live Preview.",
-  "author": "OpenAI",
+  "author": "TakamiChie",
   "isDesktopOnly": false
 }
