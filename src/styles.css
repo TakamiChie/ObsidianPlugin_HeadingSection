@@ -42,3 +42,22 @@
   cursor: not-allowed;
   opacity: 0.45;
 }
+
+.heading-section-toc-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding-inline-start: calc(0.75rem + var(--heading-level, 0) * 1rem);
+}
+
+.heading-section-toc-title {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.heading-section-toc-location {
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}

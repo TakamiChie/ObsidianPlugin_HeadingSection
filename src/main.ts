@@ -7,7 +7,7 @@ import {
   WidgetType,
 } from "@codemirror/view";
 import { RangeSetBuilder } from "@codemirror/state";
-import { Menu, Notice, Plugin } from "obsidian";
+import { App, Menu, Notice, Plugin, SuggestModal } from "obsidian";
 import styles from "./styles.css";
 
 type HeadingInfo = {
@@ -140,6 +140,71 @@ async function copyText(text: string): Promise<void> {
   await navigator.clipboard.writeText(text);
 }
 
+type TocEntry = HeadingInfo & { title: string };
+
+class HeadingTocModal extends SuggestModal<TocEntry> {
+  private readonly sourceDoc;
+  private readonly headings: TocEntry[];
+
+  constructor(app: App, private readonly view: EditorView) {
+    super(app);
+    this.sourceDoc = view.state.doc;
+    this.headings = getHeadings(view).map((heading) => ({
+      ...heading,
+      title: this.sourceDoc
+        .line(heading.lineNumber)
+        .text.replace(/^#{1,6}[ \t]+/, "")
+        .replace(/[ \t]+#+[ \t]*$/, "")
+        .trim(),
+    }));
+    this.limit = Math.max(1, this.headings.length);
+    this.shouldRestoreSelection = false;
+    this.setTitle("目次（TOC）");
+    this.setPlaceholder("見出しを検索…");
+    this.emptyStateText = "該当する見出しがありません。";
+    this.setInstructions([
+      { command: "↑ ↓", purpose: "見出しを選択" },
+      { command: "Enter", purpose: "選択した見出しへ移動" },
+      { command: "Esc", purpose: "閉じる" },
+    ]);
+  }
+
+  getSuggestions(query: string): TocEntry[] {
+    const search = query.trim().toLocaleLowerCase();
+    return this.headings.filter((heading) =>
+      heading.title.toLocaleLowerCase().includes(search),
+    );
+  }
+
+  renderSuggestion(heading: TocEntry, el: HTMLElement): void {
+    el.classList.add("heading-section-toc-entry");
+    el.style.setProperty("--heading-level", String(heading.level - 1));
+    el.createSpan({
+      cls: "heading-section-toc-title",
+      text: heading.title || "（無題の見出し）",
+    });
+    el.createSpan({
+      cls: "heading-section-toc-location",
+      text: `H${heading.level} · ${heading.lineNumber}行`,
+    });
+  }
+
+  onChooseSuggestion(heading: TocEntry): void {
+    if (!this.view.dom.isConnected) {
+      return;
+    }
+    if (this.view.state.doc !== this.sourceDoc) {
+      new Notice("本文が変更されたため、TOCを開き直してください。");
+      return;
+    }
+    this.view.dispatch({
+      selection: { anchor: heading.from },
+      effects: EditorView.scrollIntoView(heading.from, { y: "center" }),
+    });
+    this.view.focus();
+  }
+}
+
 class HeadingToolsWidget extends WidgetType {
   constructor(
     private readonly plugin: HeadingSectionToolsPlugin,
@@ -194,6 +259,13 @@ class HeadingToolsWidget extends WidgetType {
     );
     levelButton.setAttribute("aria-haspopup", "menu");
     wrapper.appendChild(levelButton);
+    const tocButton = this.createButton(
+      "TOC",
+      "このノートの見出し一覧を開く",
+      () => new HeadingTocModal(this.plugin.app, view).open(),
+    );
+    tocButton.setAttribute("aria-haspopup", "dialog");
+    wrapper.appendChild(tocButton);
 
     return wrapper;
   }
